@@ -4,6 +4,8 @@ import { emails, messages } from "@/lib/schema"
 import { eq, and, lt, or, sql } from "drizzle-orm"
 import { encodeCursor, decodeCursor } from "@/lib/cursor"
 import { getUserId } from "@/lib/apiKey"
+import { checkPermission } from "@/lib/auth"
+import { PERMISSIONS } from "@/lib/permissions"
 export const runtime = "edge"
 
 export async function DELETE(
@@ -11,16 +13,27 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const userId = await getUserId()
+  const hasAdminPermission = await checkPermission(PERMISSIONS.MANAGE_EMAIL)
 
   try {
     const db = createDb()
     const { id } = await params
-    const email = await db.query.emails.findFirst({
-      where: and(
-        eq(emails.id, id),
-        eq(emails.userId, userId!)
-      )
-    })
+    
+    let email
+    if (hasAdminPermission) {
+      // 管理员可以删除所有邮箱
+      email = await db.query.emails.findFirst({
+        where: eq(emails.id, id)
+      })
+    } else {
+      // 普通用户只能删除自己的邮箱
+      email = await db.query.emails.findFirst({
+        where: and(
+          eq(emails.id, id),
+          eq(emails.userId, userId!)
+        )
+      })
+    }
 
     if (!email) {
       return NextResponse.json(
@@ -58,13 +71,23 @@ export async function GET(
     const { id } = await params
 
     const userId = await getUserId()
+    const hasAdminPermission = await checkPermission(PERMISSIONS.MANAGE_EMAIL)
 
-    const email = await db.query.emails.findFirst({
-      where: and(
-        eq(emails.id, id),
-        eq(emails.userId, userId!)
-      )
-    })
+    let email
+    if (hasAdminPermission) {
+      // 管理员可以查看所有邮箱
+      email = await db.query.emails.findFirst({
+        where: eq(emails.id, id)
+      })
+    } else {
+      // 普通用户只能查看自己的邮箱
+      email = await db.query.emails.findFirst({
+        where: and(
+          eq(emails.id, id),
+          eq(emails.userId, userId!)
+        )
+      })
+    }
 
     if (!email) {
       return NextResponse.json(

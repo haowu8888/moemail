@@ -14,13 +14,26 @@ const handleEmail = async (message: ForwardableEmailMessage, env: Env) => {
   console.log("parsedMessage:", parsedMessage)
 
   try {
-    const targetEmail = await db.query.emails.findFirst({
+    // 查找已存在的邮箱
+    let targetEmail = await db.query.emails.findFirst({
       where: eq(sql`LOWER(${emails.address})`, message.to.toLowerCase())
     })
 
+    // 如果邮箱不存在，自动创建一个系统邮箱（不绑定用户）
     if (!targetEmail) {
-      console.error(`Email not found: ${message.to}`)
-      return
+      console.log(`Email not found, creating system email: ${message.to}`)
+      
+      // 设置过期时间为30天后
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + 30)
+      
+      targetEmail = await db.insert(emails).values({
+        address: message.to.toLowerCase(),
+        userId: null, // 系统邮箱不绑定用户
+        expiresAt: expiresAt,
+      }).returning().get()
+      
+      console.log(`Created system email: ${targetEmail.address} (ID: ${targetEmail.id})`)
     }
 
     const savedMessage = await db.insert(messages).values({

@@ -29,9 +29,13 @@ interface MessageListProps {
   email: {
     id: string
     address: string
+    userId?: string | null
+    userName?: string | null
+    userEmail?: string | null
   }
   onMessageSelect: (messageId: string | null) => void
   selectedMessageId?: string | null
+  viewMode?: 'my' | 'all'
 }
 
 interface MessageResponse {
@@ -40,7 +44,7 @@ interface MessageResponse {
   total: number
 }
 
-export function MessageList({ email, onMessageSelect, selectedMessageId }: MessageListProps) {
+export function MessageList({ email, onMessageSelect, selectedMessageId, viewMode }: MessageListProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -187,19 +191,29 @@ export function MessageList({ email, onMessageSelect, selectedMessageId }: Messa
   return (
   <>
     <div className="h-full flex flex-col">
-      <div className="p-2 flex justify-between items-center border-b border-primary/20">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleRefresh}
-          disabled={refreshing}
-          className={cn("h-8 w-8", refreshing && "animate-spin")}
-        >
-          <RefreshCw className="h-4 w-4" />
-        </Button>
-        <span className="text-xs text-gray-500">
-          {total > 0 ? `${total} 封邮件` : "暂无邮件"}
-        </span>
+      <div className="p-2 border-b border-primary/20">
+        <div className="flex justify-between items-center">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className={cn("h-8 w-8", refreshing && "animate-spin")}
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          <span className="text-xs text-gray-500">
+            {total > 0 ? `${total} 封邮件` : "暂无邮件"}
+          </span>
+        </div>
+        {viewMode === 'all' && (
+          <div className="mt-1 text-xs text-gray-500 flex items-center gap-1">
+            <span>接收者:</span>
+            <span className="font-medium">
+              {email.userId ? (email.userName || email.userEmail || '已注册用户') : '系统邮箱'}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto" onScroll={handleScroll}>

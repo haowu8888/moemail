@@ -1,61 +1,79 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useRef } from "react"
-import { Loader2 } from "lucide-react"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Label } from "@/components/ui/label"
-import { useTheme } from "next-themes"
+import { useState, useEffect, useRef } from "react";
+import { Loader2 } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import { useTheme } from "next-themes";
 
 interface Message {
-  id: string
-  from_address: string
-  subject: string
-  content: string
-  html: string | null
-  received_at: number
+  id: string;
+  from_address: string;
+  subject: string;
+  content: string;
+  html: string | null;
+  received_at: number;
 }
 
 interface MessageViewProps {
-  emailId: string
-  messageId: string
-  onClose: () => void
+  emailId: string;
+  messageId: string;
+  onClose: () => void;
+  isAdminView?: boolean;
 }
 
-type ViewMode = "html" | "text"
+type ViewMode = "html" | "text";
 
-export function MessageView({ emailId, messageId }: MessageViewProps) {
-  const [message, setMessage] = useState<Message | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [viewMode, setViewMode] = useState<ViewMode>("html")
-  const iframeRef = useRef<HTMLIFrameElement>(null)
-  const { theme } = useTheme()
+export function MessageView({
+  emailId,
+  messageId,
+  isAdminView = false,
+}: MessageViewProps) {
+  const [message, setMessage] = useState<Message | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<ViewMode>("html");
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const { theme } = useTheme();
 
   useEffect(() => {
     const fetchMessage = async () => {
       try {
-        const response = await fetch(`/api/emails/${emailId}/${messageId}`)
-        const data = await response.json() as { message: Message }
-        setMessage(data.message)
+        // 根据是否是管理员视图选择不同的API端点
+        const apiPath = isAdminView
+          ? `/api/admin/emails/${emailId}/${messageId}`
+          : `/api/emails/${emailId}/${messageId}`;
+
+        const response = await fetch(apiPath);
+
+        if (!response.ok) {
+          if (response.status === 403) {
+            console.error("没有权限查看此邮件");
+          }
+          throw new Error("Failed to fetch message");
+        }
+
+        const data = (await response.json()) as { message: Message };
+        setMessage(data.message);
         if (!data.message.html) {
-          setViewMode("text")
+          setViewMode("text");
         }
       } catch (error) {
-        console.error("Failed to fetch message:", error)
+        console.error("Failed to fetch message:", error);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchMessage()
-  }, [emailId, messageId])
+    fetchMessage();
+  }, [emailId, messageId, isAdminView]);
 
   const updateIframeContent = () => {
     if (viewMode === "html" && message?.html && iframeRef.current) {
-      const iframe = iframeRef.current
-      const doc = iframe.contentDocument || iframe.contentWindow?.document
+      const iframe = iframeRef.current;
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
 
       if (doc) {
-        doc.open()
+        doc.open();
         doc.write(`
           <!DOCTYPE html>
           <html>
@@ -67,8 +85,8 @@ export function MessageView({ emailId, messageId }: MessageViewProps) {
                   padding: 0;
                   min-height: 100%;
                   font-family: system-ui, -apple-system, sans-serif;
-                  color: ${theme === 'dark' ? '#fff' : '#000'};
-                  background: ${theme === 'dark' ? '#1a1a1a' : '#fff'};
+                  color: ${theme === "dark" ? "#fff" : "#000"};
+                  background: ${theme === "dark" ? "#1a1a1a" : "#fff"};
                 }
                 body {
                   padding: 20px;
@@ -89,73 +107,79 @@ export function MessageView({ emailId, messageId }: MessageViewProps) {
                   background: transparent;
                 }
                 ::-webkit-scrollbar-thumb {
-                  background: ${theme === 'dark'
-                    ? 'rgba(130, 109, 217, 0.3)'
-                    : 'rgba(130, 109, 217, 0.2)'};
+                  background: ${
+                    theme === "dark"
+                      ? "rgba(130, 109, 217, 0.3)"
+                      : "rgba(130, 109, 217, 0.2)"
+                  };
                   border-radius: 9999px;
                   transition: background-color 0.2s;
                 }
                 ::-webkit-scrollbar-thumb:hover {
-                  background: ${theme === 'dark'
-                    ? 'rgba(130, 109, 217, 0.5)'
-                    : 'rgba(130, 109, 217, 0.4)'};
+                  background: ${
+                    theme === "dark"
+                      ? "rgba(130, 109, 217, 0.5)"
+                      : "rgba(130, 109, 217, 0.4)"
+                  };
                 }
                 /* Firefox 滚动条 */
                 * {
                   scrollbar-width: thin;
-                  scrollbar-color: ${theme === 'dark'
-                    ? 'rgba(130, 109, 217, 0.3) transparent'
-                    : 'rgba(130, 109, 217, 0.2) transparent'};
+                  scrollbar-color: ${
+                    theme === "dark"
+                      ? "rgba(130, 109, 217, 0.3) transparent"
+                      : "rgba(130, 109, 217, 0.2) transparent"
+                  };
                 }
               </style>
             </head>
             <body>${message.html}</body>
           </html>
-        `)
-        doc.close()
+        `);
+        doc.close();
 
         // 更新高度以填充容器
         const updateHeight = () => {
-          const container = iframe.parentElement
+          const container = iframe.parentElement;
           if (container) {
-            iframe.style.height = `${container.clientHeight}px`
+            iframe.style.height = `${container.clientHeight}px`;
           }
-        }
+        };
 
-        updateHeight()
-        window.addEventListener('resize', updateHeight)
+        updateHeight();
+        window.addEventListener("resize", updateHeight);
 
         // 监听内容变化
-        const resizeObserver = new ResizeObserver(updateHeight)
-        resizeObserver.observe(doc.body)
+        const resizeObserver = new ResizeObserver(updateHeight);
+        resizeObserver.observe(doc.body);
 
         // 监听图片加载
-        doc.querySelectorAll('img').forEach((img: HTMLImageElement) => {
-          img.onload = updateHeight
-        })
+        doc.querySelectorAll("img").forEach((img: HTMLImageElement) => {
+          img.onload = updateHeight;
+        });
 
         return () => {
-          window.removeEventListener('resize', updateHeight)
-          resizeObserver.disconnect()
-        }
+          window.removeEventListener("resize", updateHeight);
+          resizeObserver.disconnect();
+        };
       }
     }
-  }
+  };
 
   // 监听主题变化和内容变化
   useEffect(() => {
-    updateIframeContent()
-  }, [message?.html, viewMode, theme])
+    updateIframeContent();
+  }, [message?.html, viewMode, theme]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-32">
         <Loader2 className="w-5 h-5 animate-spin text-primary/60" />
       </div>
-    )
+    );
   }
 
-  if (!message) return null
+  if (!message) return null;
 
   return (
     <div className="h-full flex flex-col">
@@ -166,7 +190,7 @@ export function MessageView({ emailId, messageId }: MessageViewProps) {
           <p>时间：{new Date(message.received_at).toLocaleString()}</p>
         </div>
       </div>
-      
+
       {message.html && (
         <div className="border-b border-primary/20 p-2">
           <RadioGroup
@@ -176,26 +200,20 @@ export function MessageView({ emailId, messageId }: MessageViewProps) {
           >
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="html" id="html" />
-              <Label 
-                htmlFor="html" 
-                className="text-xs cursor-pointer"
-              >
+              <Label htmlFor="html" className="text-xs cursor-pointer">
                 HTML 格式
               </Label>
             </div>
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="text" id="text" />
-              <Label 
-                htmlFor="text" 
-                className="text-xs cursor-pointer"
-              >
+              <Label htmlFor="text" className="text-xs cursor-pointer">
                 纯文本格式
               </Label>
             </div>
           </RadioGroup>
         </div>
       )}
-      
+
       <div className="flex-1 overflow-auto relative">
         {viewMode === "html" && message.html ? (
           <iframe
@@ -210,5 +228,5 @@ export function MessageView({ emailId, messageId }: MessageViewProps) {
         )}
       </div>
     </div>
-  )
-} 
+  );
+}
